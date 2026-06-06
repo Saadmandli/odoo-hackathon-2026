@@ -18,6 +18,13 @@ export default function RfqDetailClient({ role, vendorId, rfq, myQuotation }: an
 
       {rfq.description && <div className="card p-5 mb-6 text-sm text-slate-600">{rfq.description}</div>}
 
+      {rfq.attachment && (
+        <a href={rfq.attachment} target="_blank" rel="noopener noreferrer"
+           className="inline-flex items-center gap-2 mb-6 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-brand-600 hover:bg-slate-50">
+          📎 View RFQ attachment
+        </a>
+      )}
+
       <div className="card overflow-hidden mb-6">
         <div className="px-5 py-3 border-b font-semibold text-slate-800">Requested Items</div>
         <table className="w-full">

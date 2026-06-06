@@ -16,6 +16,7 @@ export default function NewRfq() {
   const [deadline, setDeadline] = useState("");
   const [items, setItems] = useState<Item[]>([{ productName: "", description: "", quantity: 1, unit: "pcs" }]);
   const [vendorIds, setVendorIds] = useState<string[]>([]);
+  const [file, setFile] = useState<File | null>(null);
   const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
 
   useEffect(() => { fetch("/api/vendors?status=ACTIVE").then((r) => r.json()).then((d) => setVendors(d.vendors || [])); }, []);
@@ -27,8 +28,19 @@ export default function NewRfq() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(""); setLoading(true);
+
+    // Upload attachment first (if any), then create the RFQ with its URL.
+    let attachment: string | undefined;
+    if (file) {
+      const fd = new FormData(); fd.append("file", file);
+      const up = await fetch("/api/upload", { method: "POST", body: fd });
+      const ud = await up.json();
+      if (!up.ok) { setErr(ud.error || "Attachment upload failed"); setLoading(false); return; }
+      attachment = ud.url;
+    }
+
     const res = await fetch("/api/rfqs", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description, department, category, budgetAmount, deadline, items, vendorIds }) });
+      body: JSON.stringify({ title, description, department, category, budgetAmount, deadline, items, vendorIds, attachment }) });
     const data = await res.json(); setLoading(false);
     if (!res.ok) { setErr(data.error || "Failed to create RFQ"); return; }
     router.push(`/rfqs/${data.rfq.id}`);
@@ -36,7 +48,7 @@ export default function NewRfq() {
 
   return (
     <div>
-      <PageHeader title="Create RFQ" subtitle="Define products, budget, deadline and invite vendors." />
+      <PageHeader title="Create RFQ" subtitle="Define products, budget, attachments, deadline and invite vendors." />
       {err && <div className="mb-4 rounded bg-rose-50 text-rose-700 text-sm px-3 py-2">{err}</div>}
       <form onSubmit={submit} className="space-y-6 max-w-3xl">
         <div className="card p-5 space-y-4">
@@ -47,7 +59,14 @@ export default function NewRfq() {
             <div><label className="label">Category</label><input className="input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. IT Hardware" /></div>
             <div><label className="label">Budget (₹)</label><input className="input" type="number" min={0} value={budgetAmount} onChange={(e) => setBudgetAmount(e.target.value)} placeholder="Optional — enables savings tracking" /></div>
           </div>
-          <div className="max-w-xs"><label className="label">Submission Deadline *</label><input className="input" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} required /></div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div><label className="label">Submission Deadline *</label><input className="input" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} required /></div>
+            <div>
+              <label className="label">Attachment (specs / drawings, optional)</label>
+              <input className="input py-1.5" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              {file && <div className="text-xs text-slate-500 mt-1">Selected: {file.name}</div>}
+            </div>
+          </div>
         </div>
 
         <div className="card p-5">

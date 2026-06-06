@@ -41,7 +41,7 @@ No database to install, no Docker. The app runs its own PostgreSQL automatically
   npm run dev:local      # starts an embedded database + the app
   ```
 
-Open **http://localhost:3000**. (First run downloads a small Postgres binary and seeds demo data.)
+Open (https://odoo-hackathon-2026-ruby.vercel.app). (First run downloads a small Postgres binary and seeds demo data.)
 
 ### Alternative — use your own PostgreSQL
 

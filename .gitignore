@@ -1,0 +1,13 @@
+node_modules
+.next
+.env
+*.log
+/invoices
+next-env.d.ts
+
+# stray locked folder from sandbox build - safe to delete
+.trash_nm_2
+_DELETE_ME_locked_nodemodules
+
+# embedded local database
+.localdb

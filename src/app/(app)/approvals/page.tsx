@@ -23,7 +23,7 @@ export default function ApprovalsPage() {
     setBusy(approvalId);
     const res = await fetch("/api/approvals", { method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ approvalId, decision, remarks: remarks[approvalId] || "" }) });
-    setBusy(""); if (res.ok) load(); else alert((await res.json()).error);
+    setBusy(""); if (res.ok) load(); else alert(await res.json().then(d=>d.error).catch(()=>'Action failed'));
   }
 
   const pending = approvals.filter((a) => a.status === "PENDING");

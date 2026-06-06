@@ -13,14 +13,20 @@ export default function LoginPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(""); setLoading(true);
-    const res = await fetch("/api/auth/login", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setErr(data.error || "Login failed"); return; }
-    router.push("/dashboard"); router.refresh();
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      let data: any = {};
+      try { data = await res.json(); } catch { /* empty/non-JSON body */ }
+      setLoading(false);
+      if (!res.ok) { setErr(data.error || "Login failed. Please try again."); return; }
+      router.push("/dashboard"); router.refresh();
+    } catch {
+      setLoading(false);
+      setErr("Could not reach the server. Is the app still running?");
+    }
   }
 
   function quick(e: string) { setEmail(e); setPassword("password123"); }
@@ -63,10 +69,10 @@ export default function LoginPage() {
           <div className="mt-8 border-t pt-4">
             <p className="text-xs text-slate-400 mb-2">Demo accounts (password: password123)</p>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <button onClick={() => quick("admin@vendorbridge.com")} className="btn-ghost py-1.5">Admin</button>
-              <button onClick={() => quick("officer@vendorbridge.com")} className="btn-ghost py-1.5">Officer</button>
-              <button onClick={() => quick("manager@vendorbridge.com")} className="btn-ghost py-1.5">Manager</button>
-              <button onClick={() => quick("vendor@techno.com")} className="btn-ghost py-1.5">Vendor</button>
+              <button type="button" onClick={() => quick("admin@vendorbridge.com")} className="btn-ghost py-1.5">Admin</button>
+              <button type="button" onClick={() => quick("officer@vendorbridge.com")} className="btn-ghost py-1.5">Officer</button>
+              <button type="button" onClick={() => quick("manager@vendorbridge.com")} className="btn-ghost py-1.5">Manager</button>
+              <button type="button" onClick={() => quick("vendor@techno.com")} className="btn-ghost py-1.5">Vendor</button>
             </div>
           </div>
         </div>

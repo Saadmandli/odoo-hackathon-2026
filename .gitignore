@@ -11,3 +11,5 @@ _DELETE_ME_locked_nodemodules
 
 # embedded local database
 .localdb
+
+.env.local

@@ -132,12 +132,12 @@ function SmartComparison({ rfq, onChange }: any) {
   async function generatePO(quotationId: string) {
     setBusy(quotationId);
     const res = await fetch("/api/purchase-orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ quotationId }) });
-    setBusy(""); if (res.ok) onChange(); else alert((await res.json()).error);
+    setBusy(""); if (res.ok) onChange(); else alert(await res.json().then(d=>d.error).catch(()=>'Action failed'));
   }
   async function generateInvoice(purchaseOrderId: string) {
     setBusy(purchaseOrderId);
     const res = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ purchaseOrderId }) });
-    setBusy(""); if (res.ok) onChange(); else alert((await res.json()).error);
+    setBusy(""); if (res.ok) onChange(); else alert(await res.json().then(d=>d.error).catch(()=>'Action failed'));
   }
 
   return (

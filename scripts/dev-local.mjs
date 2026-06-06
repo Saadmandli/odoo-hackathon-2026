@@ -15,12 +15,10 @@ const root = path.resolve(__dirname, "..");
 const dataDir = path.join(root, ".localdb");
 const PG_PORT = 5433;
 const DB_URL = `postgresql://vendorbridge:vendorbridge@localhost:${PG_PORT}/vendorbridge?schema=public`;
+const JWT = process.env.JWT_SECRET || "local-dev-secret-local-dev-secret-1234567890";
+const env = { ...process.env, DATABASE_URL: DB_URL, JWT_SECRET: JWT };
 
-const env = { ...process.env, DATABASE_URL: DB_URL, JWT_SECRET: process.env.JWT_SECRET || "local-dev-secret-local-dev-secret-1234567890" };
-
-const pg = new EmbeddedPostgres({
-  databaseDir: dataDir, user: "vendorbridge", password: "vendorbridge", port: PG_PORT, persistent: true,
-});
+const pg = new EmbeddedPostgres({ databaseDir: dataDir, user: "vendorbridge", password: "vendorbridge", port: PG_PORT, persistent: true });
 
 let server;
 async function shutdown() {
@@ -32,20 +30,56 @@ async function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
+/** Clean up a database left running/locked by a previous session. */
+function cleanupStaleDatabase() {
+  const pidFile = path.join(dataDir, "postmaster.pid");
+  if (!fs.existsSync(pidFile)) return;
+  try {
+    const pid = parseInt(String(fs.readFileSync(pidFile, "utf8")).split("\n")[0].trim(), 10);
+    if (pid && pid > 0) {
+      console.log(`• Found a database from a previous run (pid ${pid}) — stopping it…`);
+      try {
+        if (process.platform === "win32") execSync(`taskkill /F /PID ${pid} /T`, { stdio: "ignore" });
+        else process.kill(pid, "SIGKILL");
+      } catch { /* already gone */ }
+    }
+  } catch { /* ignore */ }
+  try { fs.rmSync(pidFile, { force: true }); } catch {}
+}
+
+async function startPostgresWithRetry() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await pg.start();
+      return;
+    } catch (err) {
+      if (attempt === 3) throw err;
+      console.log(`• Database busy (attempt ${attempt}/3). Cleaning up and retrying…`);
+      cleanupStaleDatabase();
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+  }
+}
+
 (async () => {
   const firstRun = !fs.existsSync(path.join(dataDir, "PG_VERSION"));
   if (firstRun) {
     console.log("• First run: initializing local database (one-time)…");
     await pg.initialise();
+  } else {
+    cleanupStaleDatabase(); // proactively clear any leftover lock
   }
+
   console.log("• Starting local PostgreSQL…");
-  await pg.start();
+  await startPostgresWithRetry();
   try { await pg.createDatabase("vendorbridge"); } catch {}
+
+  // Guarantee the Next.js app connects to THIS embedded database.
+  fs.writeFileSync(path.join(root, ".env.local"), `DATABASE_URL=${DB_URL}\nJWT_SECRET=${JWT}\n`);
 
   console.log("• Applying database schema…");
   execSync("npx prisma db push --skip-generate --accept-data-loss", { cwd: root, env, stdio: "inherit", shell: true });
 
-  // Seed only if empty
   const { PrismaClient } = await import("@prisma/client");
   process.env.DATABASE_URL = DB_URL;
   const prisma = new PrismaClient();
@@ -59,12 +93,13 @@ process.on("SIGTERM", shutdown);
   }
 
   console.log("\n✓ Database ready. Starting the app on http://localhost:3000 …\n");
-  // shell:true is required so this also works on Windows — spawning npm without
-  // a shell throws "spawn EINVAL" on recent Node versions.
   server = spawn("npm run dev", { cwd: root, env, stdio: "inherit", shell: true });
   server.on("exit", (code) => { pg.stop().finally(() => process.exit(code ?? 0)); });
 })().catch(async (e) => {
-  console.error("Failed to start:", e.message || e);
+  const msg = (e && (e.message || e.toString())) || "unknown error";
+  console.error("\nFailed to start:", msg);
+  console.error("\nIf it says the database is 'still in use', close ALL other command windows");
+  console.error("(or restart your PC) and run  npm run dev:local  again.\n");
   try { await pg.stop(); } catch {}
   process.exit(1);
 });

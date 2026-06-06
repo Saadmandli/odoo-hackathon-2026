@@ -13,13 +13,19 @@ export default function SignupPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(""); setLoading(true);
-    const res = await fetch("/api/auth/signup", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) { setErr(data.error || "Signup failed"); return; }
-    router.push("/dashboard"); router.refresh();
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      let data: any = {};
+      try { data = await res.json(); } catch {}
+      setLoading(false);
+      if (!res.ok) { setErr(data.error || "Signup failed"); return; }
+      router.push("/dashboard"); router.refresh();
+    } catch {
+      setLoading(false);
+      setErr("Could not reach the server. Is the app still running?");
+    }
   }
 
   return (

@@ -9,11 +9,18 @@ export default function ForgotPassword() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true);
-    const res = await fetch("/api/auth/forgot-password", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
-    });
-    const data = await res.json(); setLoading(false);
-    setMsg(data.message || "If an account exists, a reset email has been sent.");
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+      });
+      let data: any = {};
+      try { data = await res.json(); } catch {}
+      setLoading(false);
+      setMsg(data.message || "If an account exists, a reset email has been sent.");
+    } catch {
+      setLoading(false);
+      setMsg("If an account exists, a reset email has been sent.");
+    }
   }
 
   return (

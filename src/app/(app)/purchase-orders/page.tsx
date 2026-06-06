@@ -20,7 +20,7 @@ export default function POPage() {
   async function genInvoice(poId: string) {
     setBusy(poId);
     const res = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ purchaseOrderId: poId }) });
-    setBusy(""); if (res.ok) load(); else alert((await res.json()).error);
+    setBusy(""); if (res.ok) load(); else alert(await res.json().then(d=>d.error).catch(()=>'Action failed'));
   }
   const canManage = me && (me.role === "PROCUREMENT_OFFICER" || me.role === "ADMIN" || me.role === "MANAGER");
   const canInvoice = me && (me.role === "PROCUREMENT_OFFICER" || me.role === "ADMIN");

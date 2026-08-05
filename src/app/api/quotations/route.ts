@@ -15,6 +15,7 @@ export async function POST(req: Request) {
     if (!vendorId) return NextResponse.json({ error: "Vendor not resolved" }, { status: 400 });
 
     const rfq = await prisma.rFQ.findUnique({ where: { id: rfqId }, include: { items: true, createdBy: true, invitedVendors: true } });
+    if (!rfq) return NextResponse.json({ error: "RFQ not found" }, { status: 404 });
     if (rfq.status !== "OPEN") return NextResponse.json({ error: "This RFQ is no longer accepting quotations" }, { status: 400 });
     if (new Date() > new Date(rfq.deadline))
       return NextResponse.json({ error: "Bidding deadline for this RFQ has expired. No new quotations are accepted." }, { status: 400 });

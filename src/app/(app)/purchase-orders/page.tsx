@@ -22,8 +22,8 @@ export default function POPage() {
     const res = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ purchaseOrderId: poId }) });
     setBusy(""); if (res.ok) load(); else alert(await res.json().then(d=>d.error).catch(()=>'Action failed'));
   }
-  const canManage = me && (me.role === "PROCUREMENT_OFFICER" || me.role === "ADMIN" || me.role === "MANAGER");
-  const canInvoice = me && (me.role === "PROCUREMENT_OFFICER" || me.role === "ADMIN");
+  const canManage = me && (me.role === "BUYER" || me.role === "ADMIN");
+  const canInvoice = me && (me.role === "BUYER" || me.role === "ADMIN");
 
   const totalSavings = orders.reduce((s, p) => s + (p.savings || 0), 0);
 

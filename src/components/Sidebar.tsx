@@ -6,14 +6,15 @@ import type { Role } from "@prisma/client";
 type Item = { href: string; label: string; roles?: Role[] };
 const NAV: Item[] = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/vendors", label: "Vendors", roles: ["ADMIN", "PROCUREMENT_OFFICER", "MANAGER"] },
+  { href: "/vendors", label: "Sellers & Vendors", roles: ["ADMIN", "BUYER"] },
+  { href: "/admin/users", label: "User Approvals", roles: ["ADMIN"] },
   { href: "/rfqs", label: "RFQs" },
-  { href: "/approvals", label: "Approvals", roles: ["ADMIN", "MANAGER", "PROCUREMENT_OFFICER"] },
+  { href: "/approvals", label: "Approvals", roles: ["ADMIN", "BUYER"] },
   { href: "/purchase-orders", label: "Purchase Orders" },
-  { href: "/goods-receipts", label: "Goods Receipts", roles: ["ADMIN", "PROCUREMENT_OFFICER", "MANAGER"] },
+  { href: "/goods-receipts", label: "Goods Receipts", roles: ["ADMIN", "BUYER"] },
   { href: "/invoices", label: "Invoices" },
-  { href: "/reports", label: "Reports", roles: ["ADMIN", "PROCUREMENT_OFFICER", "MANAGER"] },
-  { href: "/activity", label: "Activity & Logs" },
+  { href: "/reports", label: "Reports", roles: ["ADMIN", "BUYER"] },
+  { href: "/activity", label: "System Security & Activity Logs", roles: ["ADMIN"] },
 ];
 
 export default function Sidebar({ role, name, roleLabel }: { role: Role; name: string; roleLabel: string }) {

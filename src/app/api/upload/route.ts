@@ -6,7 +6,7 @@ import path from "path";
 // Handles RFQ attachment uploads (PDF, images, docs). Saves under /public/uploads.
 export async function POST(req: Request) {
   try {
-    await requireUser(["ADMIN", "PROCUREMENT_OFFICER"]);
+    await requireUser(["ADMIN", "BUYER"]);
     const form = await req.formData();
     const file = form.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });

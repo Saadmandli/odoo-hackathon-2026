@@ -8,7 +8,7 @@ import { resolveTier } from "@/lib/approval-policy";
 // Smart routing: small spend auto-approves; otherwise routes to the right role.
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(["PROCUREMENT_OFFICER", "ADMIN"]);
+    const user = await requireUser(["BUYER"]);
     const { quotationId } = await req.json();
     const quotation = await prisma.quotation.findUnique({ where: { id: quotationId }, include: { rfq: true, vendor: true } });
     if (!quotation) return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
@@ -31,17 +31,16 @@ export async function POST(req: Request) {
     });
     await logActivity({ userId: user.id, action: "REQUEST_APPROVAL", entityType: "Approval", entityId: approval.id, message: `Approval requested (${tier.name}) for ${quotation.vendor.name}'s quote on ${quotation.rfq.rfqNumber}` });
 
-    const targetRole = tier.approver ?? "MANAGER";
-    const approvers = await prisma.user.findMany({ where: { role: { in: targetRole === "ADMIN" ? ["ADMIN"] : ["MANAGER", "ADMIN"] } } });
+    const approvers = await prisma.user.findMany({ where: { role: "ADMIN" } });
     for (const m of approvers) await notify(m.id, "APPROVAL", `${tier.name} needed: ${quotation.rfq.rfqNumber} — ${quotation.vendor.name}`, `/approvals`);
     return NextResponse.json({ approval, autoApproved: false, tier: tier.name }, { status: 201 });
   } catch (e) { return err(e); }
 }
 
-// Manager / Admin decides
+// Buyer decides
 export async function PATCH(req: Request) {
   try {
-    const user = await requireUser(["MANAGER", "ADMIN"]);
+    const user = await requireUser(["BUYER"]);
     const { approvalId, decision, remarks } = await req.json();
     if (!["APPROVED", "REJECTED"].includes(decision))
       return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
@@ -67,7 +66,7 @@ export async function PATCH(req: Request) {
 
 export async function GET() {
   try {
-    await requireUser(["MANAGER", "ADMIN", "PROCUREMENT_OFFICER"]);
+    await requireUser(["BUYER", "ADMIN"]);
     const approvals = await prisma.approval.findMany({
       orderBy: { createdAt: "desc" },
       include: {

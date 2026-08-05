@@ -5,7 +5,7 @@ import { computeScorecard } from "@/lib/scorecard";
 
 export async function GET() {
   try {
-    await requireUser(["ADMIN", "PROCUREMENT_OFFICER", "MANAGER"]);
+    await requireUser(["ADMIN", "BUYER"]);
     const vendors = await prisma.vendor.findMany({
       include: {
         _count: { select: { quotations: true } },

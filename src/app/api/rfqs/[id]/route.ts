@@ -17,10 +17,21 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     });
     if (!rfq) return NextResponse.json({ error: "RFQ not found" }, { status: 404 });
 
-    // Vendors may only access RFQs they were invited to...
-    if (user.role === "VENDOR") {
-      if (!rfq.invitedVendors.some((iv) => iv.vendorId === user.vendorId))
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+    // Buyers may only access RFQs created by them
+    if (user.role === "BUYER" && rfq.createdById !== user.id) {
+      return NextResponse.json({ error: "Access denied. You can only view your own RFQs." }, { status: 403 });
+    }
+
+    // Vendors may only access RFQs they were invited to or matching their category
+    if (user.role === "SELLER") {
+      if (!rfq.invitedVendors.some((iv) => iv.vendorId === user.vendorId)) {
+        // Also check if status is OPEN and matches vendor category
+        const vendor = user.vendorId ? await prisma.vendor.findUnique({ where: { id: user.vendorId } }) : null;
+        const matchesCategory = vendor?.category && rfq.category && rfq.category.toLowerCase() === vendor.category.toLowerCase();
+        if (rfq.status !== "OPEN" || !matchesCategory) {
+          return NextResponse.json({ error: "Not found" }, { status: 404 });
+        }
+      }
       // ...and only see their own quotation, not competitors'.
       rfq.quotations = rfq.quotations.filter((q) => q.vendorId === user.vendorId);
     }

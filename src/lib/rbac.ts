@@ -13,14 +13,15 @@ export class AuthError extends Error {
 export async function requireUser(roles?: Role[]): Promise<SessionUser> {
   const user = await getSession();
   if (!user) throw new AuthError("Not authenticated", 401);
-  if (roles && roles.length && !roles.includes(user.role))
-    throw new AuthError("Forbidden: insufficient role", 403);
+  if (roles && roles.length) {
+    if (!roles.includes(user.role))
+      throw new AuthError("Forbidden: insufficient role", 403);
+  }
   return user;
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
-  ADMIN: "Admin",
-  PROCUREMENT_OFFICER: "Procurement Officer",
-  MANAGER: "Manager / Approver",
-  VENDOR: "Vendor",
+  ADMIN: "Main System Admin",
+  BUYER: "Buyer",
+  SELLER: "Seller",
 };

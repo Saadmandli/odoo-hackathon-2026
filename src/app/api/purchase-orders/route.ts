@@ -7,7 +7,7 @@ import { genNumber } from "@/lib/utils";
 export async function GET() {
   try {
     const user = await requireUser();
-    const where = user.role === "VENDOR" && user.vendorId ? { vendorId: user.vendorId } : {};
+    const where = user.role === "SELLER" && user.vendorId ? { vendorId: user.vendorId } : {};
     const orders = await prisma.purchaseOrder.findMany({
       where, orderBy: { createdAt: "desc" },
       include: { vendor: true, quotation: { include: { rfq: true } }, invoice: true, goodsReceipt: true },
@@ -19,7 +19,7 @@ export async function GET() {
 // Generate a PO from an approved quotation, computing realized savings.
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(["PROCUREMENT_OFFICER", "ADMIN"]);
+    const user = await requireUser(["BUYER", "ADMIN"]);
     const { quotationId, taxRate } = await req.json();
     const quotation = await prisma.quotation.findUnique({
       where: { id: quotationId },
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     });
 
     await logActivity({ userId: user.id, action: "CREATE", entityType: "PurchaseOrder", entityId: po.id, message: `PO ${po.poNumber} issued to ${po.vendor.name} (saved ₹${savings.toLocaleString("en-IN")})` });
-    const vu = await prisma.user.findFirst({ where: { vendorId: quotation.vendorId, role: "VENDOR" } });
+    const vu = await prisma.user.findFirst({ where: { vendorId: quotation.vendorId, role: "SELLER" } });
     if (vu) await notify(vu.id, "PO", `Purchase order ${po.poNumber} issued to you`, `/purchase-orders`);
     return NextResponse.json({ po }, { status: 201 });
   } catch (e) { return err(e); }

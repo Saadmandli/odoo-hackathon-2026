@@ -4,7 +4,7 @@ import { requireUser, AuthError } from "@/lib/rbac";
 
 export async function GET() {
   try {
-    await requireUser(["ADMIN", "PROCUREMENT_OFFICER", "MANAGER"]);
+    await requireUser(["ADMIN", "BUYER"]);
 
     const pos = await prisma.purchaseOrder.findMany({ include: { vendor: true } });
     const totalSpend = pos.reduce((s, p) => s + p.totalAmount, 0);

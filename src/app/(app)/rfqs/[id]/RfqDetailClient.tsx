@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import Badge from "@/components/Badge";
 import PageHeader from "@/components/PageHeader";
 import { inr, fmtDate, fmtDateTime } from "@/lib/utils";
+import { analyzeQuoteRisk } from "@/lib/ai-risk";
 
 export default function RfqDetailClient({ role, vendorId, rfq, myQuotation }: any) {
   const router = useRouter();
-  const isVendor = role === "VENDOR";
-  const isOfficer = role === "PROCUREMENT_OFFICER" || role === "ADMIN";
+  const isVendor = role === "SELLER";
+  const isBuyer = role === "BUYER";
+  const isAdmin = role === "ADMIN";
 
   return (
     <div>
@@ -26,7 +28,15 @@ export default function RfqDetailClient({ role, vendorId, rfq, myQuotation }: an
       )}
 
       <div className="card overflow-hidden mb-6">
-        <div className="px-5 py-3 border-b font-semibold text-slate-800">Requested Items</div>
+        <div className="px-5 py-3 border-b font-semibold text-slate-800 flex justify-between items-center">
+          <span>Requested Items</span>
+          {rfq.category && (
+            <div className="flex gap-2">
+              <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-1 rounded-md">{rfq.category}</span>
+              {rfq.subcategory && <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">{rfq.subcategory}</span>}
+            </div>
+          )}
+        </div>
         <table className="w-full">
           <thead className="bg-slate-50 border-b"><tr><th className="th">Product / Service</th><th className="th">Description</th><th className="th">Qty</th><th className="th">Unit</th></tr></thead>
           <tbody className="divide-y">
@@ -38,7 +48,7 @@ export default function RfqDetailClient({ role, vendorId, rfq, myQuotation }: an
       </div>
 
       {isVendor && <VendorQuote rfq={rfq} myQuotation={myQuotation} onDone={() => router.refresh()} />}
-      {isOfficer && <SmartComparison rfq={rfq} onChange={() => router.refresh()} />}
+      {(isBuyer || isAdmin) && <SmartComparison rfq={rfq} isAdmin={isAdmin} onChange={() => router.refresh()} />}
       {!isVendor && <ApprovalTimeline approvals={rfq.approvals} />}
     </div>
   );
@@ -56,9 +66,23 @@ function VendorQuote({ rfq, myQuotation, onDone }: any) {
   const [deliveryDays, setDeliveryDays] = useState(myQuotation?.deliveryDays || 7);
   const [notes, setNotes] = useState(myQuotation?.notes || "");
   const [msg, setMsg] = useState(""); const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
+  const [counterBusy, setCounterBusy] = useState(false);
 
   const total = rfq.items.reduce((s: number, it: any) => s + (prices[it.id] || 0) * it.quantity, 0);
-  const closed = rfq.status !== "OPEN";
+  const isExpired = rfq.deadline ? new Date() > new Date(rfq.deadline) : false;
+  const closed = rfq.status !== "OPEN" || isExpired;
+  const activeCounter = myQuotation?.counterOffers?.find((c: any) => c.status === "PENDING");
+
+  async function respondCounter(counterId: string, response: "ACCEPTED" | "REJECTED") {
+    setCounterBusy(true);
+    const res = await fetch("/api/counter-offers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "RESPOND", counterId, response }),
+    });
+    setCounterBusy(false);
+    if (res.ok) { onDone(); } else { alert("Failed to respond to counter offer"); }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(""); setMsg(""); setLoading(true);
@@ -73,6 +97,47 @@ function VendorQuote({ rfq, myQuotation, onDone }: any) {
     <div className="card p-5 mb-6">
       <div className="font-semibold mb-1">{myQuotation ? "Your Quotation" : "Submit Quotation"}</div>
       {myQuotation && <div className="mb-3"><Badge status={myQuotation.status} /></div>}
+
+      {isExpired && (
+        <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold px-4 py-3 flex items-center justify-between">
+          <span>⏳ Bidding Window Closed — RFQ deadline expired on {fmtDate(rfq.deadline)}.</span>
+          <span className="badge bg-amber-600 text-white">Expired</span>
+        </div>
+      )}
+      
+      {/* Seller Counter-Offer Banner */}
+      {activeCounter && (
+        <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
+          <div className="flex justify-between items-start flex-wrap gap-2 mb-2">
+            <div>
+              <span className="badge bg-indigo-600 text-white">💬 Buyer Counter-Offer Received</span>
+              <div className="text-sm font-bold text-slate-900 mt-1">
+                Target Budget: {inr(activeCounter.targetPrice)} · Delivery Timeline: {activeCounter.targetDays} days
+              </div>
+              {activeCounter.message && <div className="text-xs text-slate-600 italic mt-0.5">"{activeCounter.message}"</div>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => respondCounter(activeCounter.id, "ACCEPTED")}
+                disabled={counterBusy}
+                className="btn-success text-xs py-1.5 px-3"
+              >
+                Accept Counter (₹{activeCounter.targetPrice.toLocaleString("en-IN")})
+              </button>
+              <button
+                type="button"
+                onClick={() => respondCounter(activeCounter.id, "REJECTED")}
+                disabled={counterBusy}
+                className="btn-ghost text-xs py-1.5 px-3 text-rose-600 hover:bg-rose-50"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {closed && <div className="mb-3 rounded bg-amber-50 text-amber-700 text-sm px-3 py-2">This RFQ is {rfq.status.toLowerCase()} and no longer accepts new quotations.</div>}
       {err && <div className="mb-3 rounded bg-rose-50 text-rose-700 text-sm px-3 py-2">{err}</div>}
       {msg && <div className="mb-3 rounded bg-emerald-50 text-emerald-700 text-sm px-3 py-2">{msg}</div>}
@@ -105,9 +170,15 @@ function ScoreBar({ value, max, color }: { value: number; max: number; color: st
   return <div className="h-1.5 w-full rounded-full bg-slate-100"><div className={`h-1.5 rounded-full ${color}`} style={{ width: `${(value / max) * 100}%` }} /></div>;
 }
 
-function SmartComparison({ rfq, onChange }: any) {
+function SmartComparison({ rfq, isAdmin, onChange }: any) {
   const [busy, setBusy] = useState("");
   const [rec, setRec] = useState<any>(null);
+  const [counterModalQuote, setCounterModalQuote] = useState<any>(null);
+  const [targetPrice, setTargetPrice] = useState("");
+  const [targetDays, setTargetDays] = useState("");
+  const [counterMsg, setCounterMsg] = useState("");
+  const [counterSubmitting, setCounterSubmitting] = useState(false);
+
   const quotes = rfq.quotations;
 
   useEffect(() => {
@@ -121,6 +192,32 @@ function SmartComparison({ rfq, onChange }: any) {
   (rec?.scored || []).forEach((s: any) => (scoredById[s.quotationId] = s));
   const winner = rec?.winner;
   const highest = Math.max(...quotes.map((q: any) => q.totalAmount));
+  const allPrices = quotes.map((q: any) => q.totalAmount);
+  const maxRating = Math.max(...quotes.map((q: any) => q.vendor?.rating || 0));
+
+  async function submitCounterOffer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!counterModalQuote) return;
+    setCounterSubmitting(true);
+    const res = await fetch("/api/counter-offers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "CREATE",
+        quotationId: counterModalQuote.id,
+        targetPrice: Number(targetPrice),
+        targetDays: Number(targetDays),
+        message: counterMsg,
+      }),
+    });
+    setCounterSubmitting(false);
+    if (res.ok) {
+      setCounterModalQuote(null);
+      onChange();
+    } else {
+      alert("Failed to submit counter offer");
+    }
+  }
 
   async function requestApproval(quotationId: string) {
     setBusy(quotationId);
@@ -142,6 +239,64 @@ function SmartComparison({ rfq, onChange }: any) {
 
   return (
     <div className="mb-6">
+      {/* Buyer Counter Offer Modal */}
+      {counterModalQuote && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-slate-900">💬 Counter-Offer to {counterModalQuote.vendor.name}</h3>
+              <button onClick={() => setCounterModalQuote(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <form onSubmit={submitCounterOffer} className="space-y-3">
+              <div>
+                <label className="label">Current Quote Price</label>
+                <input className="input bg-slate-50 text-slate-500 font-semibold" value={inr(counterModalQuote.totalAmount)} disabled />
+              </div>
+              <div>
+                <label className="label">Target Counter Price (₹) *</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  className="input"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  placeholder="e.g. 150000"
+                />
+              </div>
+              <div>
+                <label className="label">Target Delivery Timeline (Days) *</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  className="input"
+                  value={targetDays}
+                  onChange={(e) => setTargetDays(e.target.value)}
+                  placeholder="e.g. 7"
+                />
+              </div>
+              <div>
+                <label className="label">Negotiation Note / Specs Request</label>
+                <textarea
+                  className="input"
+                  rows={2}
+                  value={counterMsg}
+                  onChange={(e) => setCounterMsg(e.target.value)}
+                  placeholder="e.g. Can you match ₹1.5L for Q1 budget clearance?"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setCounterModalQuote(null)} className="btn-ghost">Cancel</button>
+                <button type="submit" disabled={counterSubmitting} className="btn-primary">
+                  {counterSubmitting ? "Sending…" : "Send Counter-Offer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Smart Award recommendation banner */}
       {winner && (
         <div className="card mb-4 p-5 border-l-4 border-l-brand-500 bg-gradient-to-r from-brand-50 to-white">
@@ -149,8 +304,8 @@ function SmartComparison({ rfq, onChange }: any) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="badge bg-brand-600 text-white">★ Smart Award</span>
-                <span className="font-semibold text-slate-900">Recommended: {winner.vendorName}</span>
-                <span className="text-xs text-slate-500">score {winner.score}/100</span>
+                <span className="font-semibold text-slate-900">Recommended Winner: {winner.vendorName}</span>
+                <span className="text-xs text-slate-500">Score {winner.score}/100</span>
               </div>
               <ul className="mt-2 text-sm text-slate-600 list-disc list-inside space-y-0.5">
                 {(rec.reasons || []).map((r: string, i: number) => <li key={i}>{r}</li>)}
@@ -166,32 +321,102 @@ function SmartComparison({ rfq, onChange }: any) {
       )}
 
       <div className="card overflow-x-auto">
-        <div className="px-5 py-3 border-b font-semibold text-slate-800">Quotation Comparison <span className="text-xs font-normal text-slate-400">· ranked by Smart Award score</span></div>
+        <div className="px-5 py-3 border-b font-semibold text-slate-800 flex justify-between items-center">
+          <span>Quotation Comparison & Interactive Negotiation</span>
+          <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2.5 py-1 rounded-md">🤖 Statistical AI & Direct Counter-Offer Engine</span>
+        </div>
         <table className="w-full min-w-[760px]">
           <thead className="bg-slate-50 border-b"><tr>
-            <th className="th">Rank</th><th className="th">Vendor</th><th className="th">Smart Score</th><th className="th">Delivery</th><th className="th">Total</th><th className="th">Status</th><th className="th">Action</th>
+            <th className="th">Rank</th><th className="th">Vendor</th><th className="th">Smart Score</th><th className="th">AI Risk & Anomaly Detector</th><th className="th">Delivery</th><th className="th">Total</th><th className="th">Status</th><th className="th">Action</th>
           </tr></thead>
           <tbody className="divide-y">
             {[...quotes].sort((a: any, b: any) => (scoredById[b.id]?.score || 0) - (scoredById[a.id]?.score || 0)).map((q: any) => {
               const po = q.purchaseOrder;
               const sc = scoredById[q.id];
               const isWinner = winner?.quotationId === q.id;
+              const latestCounter = q.counterOffers?.[0];
+
+              const aiRisk = analyzeQuoteRisk({
+                quotationId: q.id,
+                vendorName: q.vendor.name,
+                vendorRating: q.vendor.rating || 0,
+                vendorCity: q.vendor.city,
+                totalAmount: q.totalAmount,
+                rfqBudget: rfq.budgetAmount,
+                competingPrices: allPrices,
+                deliveryDays: q.deliveryDays,
+              });
+
               return (
                 <tr key={q.id} className={isWinner ? "bg-brand-50/50" : ""}>
                   <td className="td">{sc ? <span className={`badge ${sc.rank === 1 ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600"}`}>#{sc.rank}</span> : "—"}</td>
-                  <td className="td"><div className="font-medium">{q.vendor.name} {isWinner && <span className="text-brand-600">★</span>}</div><div className="text-xs text-slate-400">{q.vendor.rating ? `★ ${q.vendor.rating.toFixed(1)}` : ""} {q.notes || ""}</div></td>
-                  <td className="td w-40">
+                  <td className="td">
+                    <div className="font-medium flex items-center gap-1 flex-wrap">
+                      <span>{q.vendor.name}</span>
+                      {isWinner && <span className="text-brand-600">★</span>}
+                      {q.vendor?.rating && q.vendor.rating === maxRating && maxRating > 0 && (
+                        <span className="badge bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                          ⭐ Top Rated
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-400">{q.vendor.rating ? `★ ${q.vendor.rating.toFixed(1)}` : ""} {q.vendor.city ? `(${q.vendor.city})` : ""}</div>
+                    {latestCounter && (
+                      <div className="mt-1">
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${latestCounter.status === "ACCEPTED" ? "bg-emerald-100 text-emerald-700" : latestCounter.status === "REJECTED" ? "bg-rose-100 text-rose-700" : "bg-indigo-100 text-indigo-700"}`}>
+                          Counter {latestCounter.status} (₹{latestCounter.targetPrice.toLocaleString("en-IN")})
+                        </span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="td w-36">
                     {sc ? (<div><div className="flex justify-between text-xs mb-1"><span className="font-semibold">{sc.score}</span><span className="text-slate-400">/100</span></div><ScoreBar value={sc.score} max={100} color={isWinner ? "bg-brand-500" : "bg-slate-400"} /></div>) : "—"}
+                  </td>
+                  <td className="td">
+                    <div className="space-y-1">
+                      <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 border border-slate-200 block w-fit">
+                        {aiRisk.riskBadgeLabel}
+                      </span>
+                      <div className="text-[11px] text-slate-500 space-y-0.5">
+                        {aiRisk.signals.slice(0, 2).map((sig, idx) => (
+                          <div key={idx} className={sig.type === "WARNING" ? "text-amber-700 font-medium" : sig.type === "SUCCESS" ? "text-emerald-700" : "text-slate-600"}>
+                            • {sig.text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </td>
                   <td className="td">{q.deliveryDays}d {sc?.isFastest && <span className="badge bg-blue-100 text-blue-700 ml-1">fastest</span>}</td>
                   <td className="td font-semibold">{inr(q.totalAmount)} {sc?.isLowestPrice && <span className="badge bg-emerald-100 text-emerald-700 ml-1">lowest</span>}</td>
                   <td className="td"><Badge status={q.status} /></td>
                   <td className="td">
-                    {!approvedQuoteId && q.status === "SUBMITTED" && <button onClick={() => requestApproval(q.id)} disabled={busy === q.id} className="btn-primary py-1.5 text-xs">{busy === q.id ? "…" : "Select & approve"}</button>}
-                    {q.status === "SELECTED" && !approvedQuoteId && <span className="text-xs text-amber-600">Awaiting approval</span>}
-                    {approvedQuoteId === q.id && !po && <button onClick={() => generatePO(q.id)} disabled={busy === q.id} className="btn-success py-1.5 text-xs">{busy === q.id ? "…" : "Generate PO"}</button>}
-                    {po && !po.invoice && <button onClick={() => generateInvoice(po.id)} disabled={busy === po.id} className="btn-success py-1.5 text-xs">{busy === po.id ? "…" : "Generate Invoice"}</button>}
-                    {po?.invoice && <a href="/invoices" className="text-brand-600 text-xs hover:underline">View invoice →</a>}
+                    {isAdmin ? (
+                      <span className="badge bg-indigo-50 text-indigo-700 text-xs border border-indigo-200">
+                        🛡️ Admin Oversight
+                      </span>
+                    ) : (
+                      <>
+                        {!approvedQuoteId && q.status === "SUBMITTED" && (
+                          <div className="flex flex-col gap-1.5">
+                            <button onClick={() => requestApproval(q.id)} disabled={busy === q.id} className="btn-primary py-1 text-xs">{busy === q.id ? "…" : "Select & Approve"}</button>
+                            <button
+                              onClick={() => {
+                                setCounterModalQuote(q);
+                                setTargetPrice(String(Math.round(q.totalAmount * 0.9)));
+                                setTargetDays(String(Math.max(1, q.deliveryDays - 2)));
+                              }}
+                              className="btn-ghost py-1 text-xs text-indigo-600 hover:bg-indigo-50 border border-indigo-200"
+                            >
+                              💬 Counter Offer
+                            </button>
+                          </div>
+                        )}
+                        {q.status === "SELECTED" && !approvedQuoteId && <span className="text-xs text-amber-600">Awaiting approval</span>}
+                        {approvedQuoteId === q.id && !po && <button onClick={() => generatePO(q.id)} disabled={busy === q.id} className="btn-success py-1.5 text-xs">{busy === q.id ? "…" : "Generate PO"}</button>}
+                        {po && !po.invoice && <button onClick={() => generateInvoice(po.id)} disabled={busy === po.id} className="btn-success py-1.5 text-xs">{busy === po.id ? "…" : "Generate Invoice"}</button>}
+                        {po?.invoice && <a href="/invoices" className="text-brand-600 text-xs hover:underline">View invoice →</a>}
+                      </>
+                    )}
                   </td>
                 </tr>
               );

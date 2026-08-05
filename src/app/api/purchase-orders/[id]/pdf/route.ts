@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       include: { vendor: true, quotation: { include: { rfq: true, items: { include: { rfqItem: true } } } } },
     });
     if (!po) return NextResponse.json({ error: "Purchase order not found" }, { status: 404 });
-    if (user.role === "VENDOR" && po.vendorId !== user.vendorId)
+    if (user.role === "SELLER" && po.vendorId !== user.vendorId)
       return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const pdf = await buildPurchaseOrderPdf({

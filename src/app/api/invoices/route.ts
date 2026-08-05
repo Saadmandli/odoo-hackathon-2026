@@ -8,7 +8,7 @@ import { reconcileMatch } from "@/lib/match";
 export async function GET() {
   try {
     const user = await requireUser();
-    const where = user.role === "VENDOR" && user.vendorId
+    const where = user.role === "SELLER" && user.vendorId
       ? { purchaseOrder: { vendorId: user.vendorId } } : {};
     const invoices = await prisma.invoice.findMany({
       where, orderBy: { createdAt: "desc" },
@@ -21,7 +21,7 @@ export async function GET() {
 // Generate invoice from a PO, then run the 3-way match.
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(["PROCUREMENT_OFFICER", "ADMIN"]);
+    const user = await requireUser(["BUYER", "ADMIN"]);
     const { purchaseOrderId } = await req.json();
     const po = await prisma.purchaseOrder.findUnique({ where: { id: purchaseOrderId }, include: { invoice: true, vendor: true } });
     if (!po) return NextResponse.json({ error: "Purchase order not found" }, { status: 404 });

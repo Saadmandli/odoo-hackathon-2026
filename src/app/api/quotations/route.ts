@@ -5,21 +5,22 @@ import { logActivity, notify } from "@/lib/activity";
 
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(["VENDOR", "ADMIN"]);
+    const user = await requireUser(["SELLER", "ADMIN"]);
     const body = await req.json();
     const { rfqId, deliveryDays, notes, items } = body; // items: [{rfqItemId, unitPrice}]
     if (!rfqId || !Array.isArray(items) || items.length === 0)
       return NextResponse.json({ error: "RFQ and item pricing are required" }, { status: 400 });
 
-    const vendorId = user.role === "VENDOR" ? user.vendorId : body.vendorId;
+    const vendorId = user.role === "SELLER" ? user.vendorId : body.vendorId;
     if (!vendorId) return NextResponse.json({ error: "Vendor not resolved" }, { status: 400 });
 
     const rfq = await prisma.rFQ.findUnique({ where: { id: rfqId }, include: { items: true, createdBy: true, invitedVendors: true } });
-    if (!rfq) return NextResponse.json({ error: "RFQ not found" }, { status: 404 });
     if (rfq.status !== "OPEN") return NextResponse.json({ error: "This RFQ is no longer accepting quotations" }, { status: 400 });
+    if (new Date() > new Date(rfq.deadline))
+      return NextResponse.json({ error: "Bidding deadline for this RFQ has expired. No new quotations are accepted." }, { status: 400 });
 
     // Access control: a vendor may only quote on RFQs they were invited to.
-    if (user.role === "VENDOR" && !rfq.invitedVendors.some((iv) => iv.vendorId === vendorId))
+    if (user.role === "SELLER" && !rfq.invitedVendors.some((iv) => iv.vendorId === vendorId))
       return NextResponse.json({ error: "You have not been invited to quote on this RFQ" }, { status: 403 });
 
     // Integrity: only accept pricing for items that belong to this RFQ.

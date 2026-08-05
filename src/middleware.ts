@@ -6,14 +6,22 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || "dev-insecure-secret-change-me-in-env-file-please"
 );
 
-const PUBLIC = ["/login", "/signup", "/forgot-password"];
+const PUBLIC = ["/login", "/signup", "/forgot-password", "/pending-approval"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("vb_session")?.value;
   let valid = false;
+  let payload: any = null;
+
   if (token) {
-    try { await jwtVerify(token, secret); valid = true; } catch { valid = false; }
+    try {
+      const res = await jwtVerify(token, secret);
+      payload = res.payload;
+      valid = true;
+    } catch {
+      valid = false;
+    }
   }
 
   const isPublic = PUBLIC.some((p) => pathname.startsWith(p));
@@ -23,11 +31,24 @@ export async function middleware(req: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (valid && isPublic) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+
+  if (valid) {
+    const isPending = payload?.status === "PENDING" || payload?.status === "REJECTED";
+    const isAdmin = payload?.role === "ADMIN";
+
+    if (isPending && !isAdmin && pathname !== "/pending-approval") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/pending-approval";
+      return NextResponse.redirect(url);
+    }
+
+    if (!isPending && isPublic) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
   }
+
   return NextResponse.next();
 }
 

@@ -10,9 +10,14 @@ datasource db {
 
 enum Role {
   ADMIN
-  PROCUREMENT_OFFICER
-  MANAGER
-  VENDOR
+  BUYER
+  SELLER
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum VendorStatus {
@@ -70,31 +75,36 @@ enum GRNStatus {
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String     @unique
   passwordHash String
-  role         Role     @default(PROCUREMENT_OFFICER)
+  role         Role       @default(BUYER)
+  status       UserStatus @default(PENDING)
+  city         String?
   vendorId     String?
-  vendor       Vendor?  @relation(fields: [vendorId], references: [id])
-  createdAt    DateTime @default(now())
+  vendor       Vendor?    @relation(fields: [vendorId], references: [id])
+  createdAt    DateTime   @default(now())
 
   rfqs          RFQ[]          @relation("CreatedRFQs")
   approvals     Approval[]
   activityLogs  ActivityLog[]
   notifications Notification[]
   goodsReceipts GoodsReceipt[]
+  counterOffers CounterOffer[]
 }
 
 model Vendor {
   id          String       @id @default(cuid())
   name        String
   category    String
+  subcategory String?
   gstNumber   String?
   contactName String?
   email       String       @unique
   phone       String?
   address     String?
+  city        String?
   status      VendorStatus @default(PENDING)
   rating      Float        @default(0)
   createdAt   DateTime     @default(now())
@@ -112,6 +122,7 @@ model RFQ {
   description  String?
   department   String?
   category     String?
+  subcategory  String?
   budgetAmount Float?
   deadline     DateTime
   status       RFQStatus   @default(OPEN)
@@ -164,6 +175,7 @@ model Quotation {
   items         QuotationItem[]
   purchaseOrder PurchaseOrder?
   approvals     Approval[]
+  counterOffers CounterOffer[]
 
   @@unique([rfqId, vendorId])
 }
@@ -274,4 +286,17 @@ model Notification {
   read      Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
+}
+
+model CounterOffer {
+  id           String    @id @default(cuid())
+  quotationId  String
+  quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  targetPrice  Float
+  targetDays   Int
+  message      String?
+  status       String    @default("PENDING")
+  createdById  String
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
 }

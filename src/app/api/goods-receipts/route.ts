@@ -19,7 +19,7 @@ export async function GET() {
 // Record receipt of goods against a PO. Lines: [{ rfqItemId, receivedQty }]
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(["PROCUREMENT_OFFICER", "ADMIN", "MANAGER"]);
+    const user = await requireUser(["BUYER", "ADMIN"]);
     const { purchaseOrderId, notes, lines } = await req.json();
     const po = await prisma.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },

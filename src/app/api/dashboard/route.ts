@@ -5,7 +5,7 @@ import { requireUser, AuthError } from "@/lib/rbac";
 export async function GET() {
   try {
     const user = await requireUser();
-    const vendorScope = user.role === "VENDOR" && user.vendorId;
+    const vendorScope = user.role === "SELLER" && user.vendorId;
 
     const [activeRfqs, pendingApprovals, recentPOs, recentInvoices, vendorCount, totalSpendAgg] = await Promise.all([
       prisma.rFQ.count({ where: vendorScope ? { status: "OPEN", invitedVendors: { some: { vendorId: user.vendorId! } } } : { status: "OPEN" } }),

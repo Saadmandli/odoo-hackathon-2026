@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 
+import { CATEGORIES_TAXONOMY, CATEGORY_NAMES } from "@/lib/categories";
+
 type Item = { productName: string; description: string; quantity: number; unit: string };
 
 export default function NewRfq() {
@@ -11,7 +13,8 @@ export default function NewRfq() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [department, setDepartment] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState("Furniture");
+  const [subcategory, setSubcategory] = useState("Office Desks");
   const [budgetAmount, setBudgetAmount] = useState("");
   const [deadline, setDeadline] = useState("");
   const [items, setItems] = useState<Item[]>([{ productName: "", description: "", quantity: 1, unit: "pcs" }]);
@@ -19,7 +22,30 @@ export default function NewRfq() {
   const [file, setFile] = useState<File | null>(null);
   const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
 
-  useEffect(() => { fetch("/api/vendors?status=ACTIVE").then((r) => r.json()).then((d) => setVendors(d.vendors || [])); }, []);
+  useEffect(() => {
+    fetch(`/api/vendors?status=ACTIVE&category=${encodeURIComponent(category)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.vendors || [];
+        setVendors(list);
+        // Pre-select all matching category vendors for convenience
+        setVendorIds(list.map((v: any) => v.id));
+      });
+  }, [category]);
+
+  function handleCategoryChange(newCat: string) {
+    setCategory(newCat);
+    const subList = CATEGORIES_TAXONOMY[newCat] || [];
+    setSubcategory(subList[0] || "");
+  }
+
+  function toggleSelectAllMatching() {
+    if (vendorIds.length === vendors.length) {
+      setVendorIds([]);
+    } else {
+      setVendorIds(vendors.map((v) => v.id));
+    }
+  }
 
   function setItem(i: number, k: keyof Item, v: any) { setItems((arr) => arr.map((it, idx) => idx === i ? { ...it, [k]: v } : it)); }
   function addItem() { setItems((a) => [...a, { productName: "", description: "", quantity: 1, unit: "pcs" }]); }
@@ -40,11 +66,13 @@ export default function NewRfq() {
     }
 
     const res = await fetch("/api/rfqs", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description, department, category, budgetAmount, deadline, items, vendorIds, attachment }) });
+      body: JSON.stringify({ title, description, department, category, subcategory, budgetAmount, deadline, items, vendorIds, attachment }) });
     const data = await res.json(); setLoading(false);
     if (!res.ok) { setErr(data.error || "Failed to create RFQ"); return; }
     router.push(`/rfqs/${data.rfq.id}`);
   }
+
+  const subcategories = CATEGORIES_TAXONOMY[category] || [];
 
   return (
     <div>
@@ -54,10 +82,29 @@ export default function NewRfq() {
         <div className="card p-5 space-y-4">
           <div><label className="label">RFQ Title *</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Procurement of 50 office laptops" /></div>
           <div><label className="label">Description</label><textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div className="grid sm:grid-cols-3 gap-3">
+          
+          <div className="grid sm:grid-cols-2 gap-3">
             <div><label className="label">Department</label><input className="input" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Operations" /></div>
-            <div><label className="label">Category</label><input className="input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. IT Hardware" /></div>
             <div><label className="label">Budget (₹)</label><input className="input" type="number" min={0} value={budgetAmount} onChange={(e) => setBudgetAmount(e.target.value)} placeholder="Optional — enables savings tracking" /></div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div>
+              <label className="label">Category *</label>
+              <select className="input" value={category} onChange={(e) => handleCategoryChange(e.target.value)}>
+                {CATEGORY_NAMES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Subcategory *</label>
+              <select className="input" value={subcategory} onChange={(e) => setSubcategory(e.target.value)}>
+                {subcategories.map((sub) => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <div><label className="label">Submission Deadline *</label><input className="input" type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} required /></div>
@@ -84,14 +131,48 @@ export default function NewRfq() {
           </div>
         </div>
 
-        <div className="card p-5">
-          <div className="font-semibold mb-3">Invite Vendors</div>
-          {vendors.length === 0 && <div className="text-sm text-slate-400">No active vendors. Register vendors first.</div>}
+        <div className="card p-5 border-l-4 border-l-brand-500">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div>
+              <div className="font-semibold text-slate-900 flex items-center gap-2">
+                <span>⚡ Smart-Matched Suppliers</span>
+                <span className="badge bg-brand-100 text-brand-700">{category}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Automatically filtered to suppliers specializing in {category} → {subcategory}.
+              </div>
+            </div>
+            {vendors.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectAllMatching}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg border border-brand-200"
+              >
+                {vendorIds.length === vendors.length ? "Deselect All" : "⚡ Select All Matching"}
+              </button>
+            )}
+          </div>
+
+          {vendors.length === 0 && (
+            <div className="text-sm text-slate-400 py-4 text-center">
+              No active vendors registered for category "{category}". You can still publish this RFQ for public bidding.
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-2">
             {vendors.map((v) => (
-              <label key={v.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer ${vendorIds.includes(v.id) ? "border-brand-400 bg-brand-50" : "border-slate-200"}`}>
+              <label key={v.id} className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition ${vendorIds.includes(v.id) ? "border-brand-500 bg-brand-50/60 shadow-xs" : "border-slate-200 hover:bg-slate-50"}`}>
                 <input type="checkbox" checked={vendorIds.includes(v.id)} onChange={() => toggleVendor(v.id)} />
-                <div><div className="text-sm font-medium">{v.name}</div><div className="text-xs text-slate-400">{v.category}</div></div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-slate-900">{v.name}</span>
+                    {v.rating > 0 && <span className="text-xs text-amber-600 font-semibold">★ {v.rating.toFixed(1)}</span>}
+                  </div>
+                  <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
+                    <span>{v.subcategory || v.category}</span>
+                    {v.city && <span>· 📍 {v.city}</span>}
+                  </div>
+                </div>
               </label>
             ))}
           </div>

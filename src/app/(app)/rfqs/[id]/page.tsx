@@ -11,19 +11,19 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
       createdBy: { select: { name: true, email: true } },
       items: true,
       invitedVendors: { include: { vendor: true } },
-      quotations: { include: { vendor: true, items: { include: { rfqItem: true } }, purchaseOrder: { include: { invoice: true } } }, orderBy: { totalAmount: "asc" } },
+      quotations: { include: { vendor: true, counterOffers: { include: { createdBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }, items: { include: { rfqItem: true } }, purchaseOrder: { include: { invoice: true } } }, orderBy: { totalAmount: "asc" } },
       approvals: { include: { approver: { select: { name: true } }, quotation: { include: { vendor: true } } }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!rfq) notFound();
 
-  // Access control: a vendor can only open an RFQ they were invited to.
-  if (user.role === "VENDOR" && !rfq.invitedVendors.some((iv) => iv.vendorId === user.vendorId)) notFound();
+  const sellerVendor = user.vendorId ? await prisma.vendor.findUnique({ where: { id: user.vendorId } }) : null;
+  if (user.role === "SELLER" && !rfq.invitedVendors.some((iv) => iv.vendorId === user.vendorId) && rfq.category !== sellerVendor?.category) notFound();
 
   const visibleQuotations =
-    user.role === "VENDOR" ? rfq.quotations.filter((q) => q.vendorId === user.vendorId) : rfq.quotations;
+    user.role === "SELLER" ? rfq.quotations.filter((q) => q.vendorId === user.vendorId) : rfq.quotations;
 
-  const myQuotation = user.role === "VENDOR" ? visibleQuotations[0] || null : null;
+  const myQuotation = user.role === "SELLER" ? visibleQuotations[0] || null : null;
 
   return (
     <RfqDetailClient

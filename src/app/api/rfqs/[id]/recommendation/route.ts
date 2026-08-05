@@ -5,7 +5,7 @@ import { scoreQuotations } from "@/lib/scoring";
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser(["PROCUREMENT_OFFICER", "ADMIN", "MANAGER"]);
+    await requireUser(["BUYER", "ADMIN"]);
     const quotes = await prisma.quotation.findMany({
       where: { rfqId: params.id, status: { in: ["SUBMITTED", "SELECTED"] } },
       include: { vendor: true },

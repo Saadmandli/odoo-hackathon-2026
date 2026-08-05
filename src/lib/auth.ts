@@ -13,6 +13,8 @@ export type SessionUser = {
   name: string;
   email: string;
   role: Role;
+  status?: string;
+  city?: string | null;
   vendorId?: string | null;
 };
 
@@ -53,6 +55,8 @@ export async function getSession(): Promise<SessionUser | null> {
       name: payload.name as string,
       email: payload.email as string,
       role: payload.role as Role,
+      status: (payload.status as string) ?? "APPROVED",
+      city: (payload.city as string) ?? null,
       vendorId: (payload.vendorId as string) ?? null,
     };
   } catch {

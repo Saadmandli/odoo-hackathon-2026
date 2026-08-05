@@ -9,7 +9,7 @@ import { inr } from "@/lib/utils";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser(["PROCUREMENT_OFFICER", "ADMIN"]);
+    const user = await requireUser(["BUYER", "ADMIN"]);
     const data = await loadInvoiceData(params.id);
     if (!data) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 

@@ -6,7 +6,7 @@ import { fmtDate } from "@/lib/utils";
 
 export async function GET() {
   try {
-    await requireUser(["ADMIN", "PROCUREMENT_OFFICER", "MANAGER"]);
+    await requireUser(["ADMIN", "BUYER"]);
     const pos = await prisma.purchaseOrder.findMany({
       include: { vendor: true, quotation: { include: { rfq: true } }, invoice: true, goodsReceipt: true },
       orderBy: { createdAt: "desc" },

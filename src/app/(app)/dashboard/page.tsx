@@ -6,7 +6,7 @@ import Badge from "@/components/Badge";
 import PageHeader from "@/components/PageHeader";
 
 async function getData(role: string, vendorId?: string | null) {
-  const vendorScope = role === "VENDOR" && vendorId;
+  const vendorScope = role === "SELLER" && vendorId;
   const [activeRfqs, pendingApprovals, vendorCount, spend, savings, recentPOs, recentInvoices] = await Promise.all([
     prisma.rFQ.count({ where: vendorScope ? { status: "OPEN", invitedVendors: { some: { vendorId } } } : { status: "OPEN" } }),
     prisma.approval.count({ where: { status: "PENDING" } }),
@@ -31,7 +31,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 export default async function Dashboard() {
   const user = (await getSession())!;
   const d = await getData(user.role, user.vendorId);
-  const isVendor = user.role === "VENDOR";
+  const isVendor = user.role === "SELLER";
 
   return (
     <div>
@@ -46,14 +46,13 @@ export default async function Dashboard() {
       </div>
 
       <div className="flex flex-wrap gap-3 mb-8">
-        {(user.role === "PROCUREMENT_OFFICER" || user.role === "ADMIN") && (
+        {(user.role === "BUYER" || user.role === "ADMIN") && (
           <>
             <Link href="/rfqs/new" className="btn-primary">+ New RFQ</Link>
             <Link href="/vendors" className="btn-ghost">Manage Vendors</Link>
             <Link href="/reports" className="btn-ghost">View Reports</Link>
           </>
         )}
-        {user.role === "MANAGER" && <Link href="/approvals" className="btn-primary">Review Approvals</Link>}
         {isVendor && <Link href="/rfqs" className="btn-primary">View Open RFQs</Link>}
         <Link href="/invoices" className="btn-ghost">Invoices</Link>
       </div>

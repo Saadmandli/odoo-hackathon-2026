@@ -17,7 +17,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser(["ADMIN", "PROCUREMENT_OFFICER"]);
+    const user = await requireUser(["ADMIN", "BUYER"]);
     const body = await req.json();
     const vendor = await prisma.vendor.update({
       where: { id: params.id },

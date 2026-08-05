@@ -17,7 +17,7 @@ export default function InvoicesPage() {
     setInvoices(i.invoices || []); setMe(m.user);
   }
   useEffect(() => { load(); }, []);
-  const canSend = me && (me.role === "PROCUREMENT_OFFICER" || me.role === "ADMIN");
+  const canSend = me && (me.role === "BUYER" || me.role === "ADMIN");
 
   function download(id: string) { window.open(`/api/invoices/${id}/pdf`, "_blank"); }
   function print(id: string) { window.open(`/api/invoices/${id}/pdf?inline=1`, "_blank"); }
